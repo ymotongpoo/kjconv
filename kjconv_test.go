@@ -83,6 +83,16 @@ func TestConvert_CasualToPolite(t *testing.T) {
 			input:    "彼は『本を読む』と言った。",
 			expected: "彼は『本を読む』と言いました。",
 		},
+		{
+			name:     "接続詞だから",
+			input:    "だから今日は晴れだ。",
+			expected: "ですから今日は晴れです。",
+		},
+		{
+			name:     "接続詞だが",
+			input:    "だが今日は晴れだ。",
+			expected: "ですが今日は晴れです。",
+		},
 	}
 
 	for _, tt := range tests {
@@ -139,6 +149,16 @@ func TestConvert_PoliteToCasual(t *testing.T) {
 			name:     "『』引用文は変換しない",
 			input:    "彼は『本を読みます』と言った。",
 			expected: "彼は『本を読みます』と言った。",
+		},
+		{
+			name:     "接続詞ですから",
+			input:    "ですから今日は晴れです。",
+			expected: "だから今日は晴れだ。",
+		},
+		{
+			name:     "接続詞ですが",
+			input:    "ですが今日は晴れです。",
+			expected: "だが今日は晴れだ。",
 		},
 	}
 

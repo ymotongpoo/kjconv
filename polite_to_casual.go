@@ -49,6 +49,7 @@ func (c *Converter) convertPoliteToCasualSegment(segment string) (string, error)
 	converted = c.convertAdjectivePoliteToCase(converted)
 	converted = c.convertNounPoliteToCase(converted)
 	converted = c.convertAuxiliaryPoliteToCase(converted)
+	converted = c.convertConjunctionPoliteToCase(converted)
 	
 	result := c.reconstructSentence(converted)
 	slog.Debug("segment conversion result", "original", segment, "converted", result)
@@ -407,6 +408,39 @@ func (c *Converter) convertAuxiliaryPoliteToCase(morphemes []MorphemeInfo) []Mor
 			if (current.Surface == "の" || current.Surface == "ん") && next.Surface == "です" {
 				result[i+1].Surface = "だ"
 				result[i+1].BaseForm = "だ"
+			}
+		}
+	}
+	
+	return result
+}
+// convertConjunctionPoliteToCase converts conjunctions from polite to casual form.
+// ですから → だから, ですが → だが
+func (c *Converter) convertConjunctionPoliteToCase(morphemes []MorphemeInfo) []MorphemeInfo {
+	if len(morphemes) == 0 {
+		return morphemes
+	}
+	
+	result := make([]MorphemeInfo, len(morphemes))
+	copy(result, morphemes)
+	
+	// Check the beginning of the sentence for conjunctions
+	if len(result) > 0 {
+		first := result[0]
+		
+		slog.Debug("checking conjunction conversion", "surface", first.Surface, "pos", first.PartOfSpeech)
+		
+		// Convert specific conjunctions
+		switch first.Surface {
+		case "ですから":
+			if first.PartOfSpeech == "接続詞" {
+				slog.Debug("converting conjunction", "from", "ですから", "to", "だから")
+				result[0].Surface = "だから"
+			}
+		case "ですが":
+			if first.PartOfSpeech == "接続詞" {
+				slog.Debug("converting conjunction", "from", "ですが", "to", "だが")
+				result[0].Surface = "だが"
 			}
 		}
 	}

@@ -46,6 +46,7 @@ func (c *Converter) convertCasualToPoliteSegment(segment string) (string, error)
 	converted = c.convertAdjectiveCasualToPolite(converted)
 	converted = c.convertNounCasualToPolite(converted)
 	converted = c.convertAuxiliaryCasualToPolite(converted)
+	converted = c.convertConjunctionCasualToPolite(converted)
 	
 	result := c.reconstructSentence(converted)
 	slog.Debug("segment conversion result", "original", segment, "converted", result)
@@ -480,4 +481,37 @@ func (c *Converter) reconstructSentence(morphemes []MorphemeInfo) string {
 		parts = append(parts, morpheme.Surface)
 	}
 	return strings.Join(parts, "")
+}
+// convertConjunctionCasualToPolite converts conjunctions from casual to polite form.
+// だから → ですから, だが → ですが
+func (c *Converter) convertConjunctionCasualToPolite(morphemes []MorphemeInfo) []MorphemeInfo {
+	if len(morphemes) == 0 {
+		return morphemes
+	}
+	
+	result := make([]MorphemeInfo, len(morphemes))
+	copy(result, morphemes)
+	
+	// Check the beginning of the sentence for conjunctions
+	if len(result) > 0 {
+		first := result[0]
+		
+		slog.Debug("checking conjunction conversion", "surface", first.Surface, "pos", first.PartOfSpeech)
+		
+		// Convert specific conjunctions
+		switch first.Surface {
+		case "だから":
+			if first.PartOfSpeech == "接続詞" {
+				slog.Debug("converting conjunction", "from", "だから", "to", "ですから")
+				result[0].Surface = "ですから"
+			}
+		case "だが":
+			if first.PartOfSpeech == "接続詞" {
+				slog.Debug("converting conjunction", "from", "だが", "to", "ですが")
+				result[0].Surface = "ですが"
+			}
+		}
+	}
+	
+	return result
 }
