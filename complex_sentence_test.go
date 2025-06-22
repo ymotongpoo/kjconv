@@ -41,6 +41,11 @@ func TestComplexSentenceConversion_CasualToPolite(t *testing.T) {
 			expected: "疲れているから、早く寝ます。",
 		},
 		{
+			name:     "理由を表す文2",
+			input:    "疲れているので、早く寝る。",
+			expected: "疲れているので、早く寝ます。",
+		},
+		{
 			name:     "単純な否定文",
 			input:    "本を読まない。",
 			expected: "本を読みません。",
