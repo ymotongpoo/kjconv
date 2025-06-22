@@ -14,11 +14,17 @@ func main() {
 	var (
 		mode = flag.String("mode", "casual-to-polite", "Conversion mode: 'casual-to-polite' or 'polite-to-casual'")
 		text = flag.String("text", "", "Text to convert")
+		debug = flag.Bool("debug", false, "Enable debug logging")
 	)
 	flag.Parse()
 
 	// Setup structured logging
-	logger := slog.New(slog.NewJSONHandler(os.Stderr, nil))
+	var logger *slog.Logger
+	if *debug {
+		logger = slog.New(slog.NewJSONHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelDebug}))
+	} else {
+		logger = slog.New(slog.NewJSONHandler(os.Stderr, nil))
+	}
 	slog.SetDefault(logger)
 
 	if *text == "" {
@@ -26,6 +32,8 @@ func main() {
 		flag.Usage()
 		os.Exit(1)
 	}
+
+	slog.Debug("starting conversion", "input", *text, "mode", *mode)
 
 	converter, err := kjconv.NewConverter()
 	if err != nil {
@@ -50,5 +58,6 @@ func main() {
 		os.Exit(1)
 	}
 
+	slog.Debug("conversion completed", "output", result)
 	fmt.Println(result)
 }

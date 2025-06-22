@@ -2,6 +2,9 @@
 package kjconv
 
 import (
+	"fmt"
+	"strings"
+
 	"github.com/ikawaha/kagome-dict/ipa"
 	"github.com/ikawaha/kagome/v2/tokenizer"
 )
@@ -35,6 +38,31 @@ func NewConverter() (*Converter, error) {
 
 // Convert converts the input text according to the specified mode.
 func (c *Converter) Convert(text string, mode ConversionMode) (string, error) {
-	// TODO: Implement conversion logic
-	return text, nil
+	// Split text into sentences
+	sentences := SplitSentences(text)
+	
+	var convertedSentences []string
+	
+	for _, sentence := range sentences {
+		var converted string
+		var err error
+		
+		switch mode {
+		case CasualToPolite:
+			converted, err = c.convertCasualToPolite(sentence)
+		case PoliteToCasual:
+			converted, err = c.convertPoliteToCasual(sentence)
+		default:
+			return "", fmt.Errorf("unsupported conversion mode: %d", mode)
+		}
+		
+		if err != nil {
+			return "", err
+		}
+		
+		convertedSentences = append(convertedSentences, converted)
+	}
+	
+	// Join sentences back together
+	return strings.Join(convertedSentences, ""), nil
 }
