@@ -144,11 +144,21 @@ func (c *Converter) getVerbRenyoukei(morpheme MorphemeInfo) string {
 		if baseForm == "来る" {
 			return "来"
 		}
+	case "サ変・スル":
+		// する → し
+		if baseForm == "する" {
+			return "し"
+		}
 	case "サ変":
 		// する → し
 		if baseForm == "する" {
 			return "し"
 		}
+	}
+	
+	// Special handling for する verb
+	if baseForm == "する" {
+		return "し"
 	}
 	
 	// Fallback: try to use the surface form if it looks like 連用形

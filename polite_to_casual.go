@@ -51,51 +51,72 @@ func (c *Converter) convertVerbPoliteToCase(morphemes []MorphemeInfo) []Morpheme
 	result := make([]MorphemeInfo, len(morphemes))
 	copy(result, morphemes)
 	
+	// Skip punctuation at the end
 	lastIdx := len(result) - 1
-	if lastIdx >= 0 {
-		last := result[lastIdx]
+	actualLastIdx := lastIdx
+	for actualLastIdx >= 0 && result[actualLastIdx].PartOfSpeech == "記号" {
+		actualLastIdx--
+	}
+	
+	if actualLastIdx >= 0 {
+		last := result[actualLastIdx]
+		
+		slog.Debug("checking verb polite conversion", "surface", last.Surface, "pos", last.PartOfSpeech, "base_form", last.BaseForm, "inflection_form", last.InflectionForm)
 		
 		// Handle ます forms
 		if last.PartOfSpeech == "助動詞" && last.BaseForm == "ます" {
 			switch last.InflectionForm {
-			case "終止形": // ます → 終止形
-				if lastIdx > 0 {
-					prev := result[lastIdx-1]
-					if prev.PartOfSpeech == "動詞" {
+			case "基本形": // ます → 終止形
+				if actualLastIdx > 0 {
+					prev := result[actualLastIdx-1]
+					if prev.PartOfSpeech == "動詞" && prev.InflectionForm == "連用形" {
 						// Convert to dictionary form
 						baseForm := prev.BaseForm
 						if baseForm != "" {
-							result[lastIdx-1].Surface = baseForm
-							result[lastIdx-1].InflectionForm = "終止形"
+							slog.Debug("converting ます to base form", "verb", prev.Surface, "base_form", baseForm)
+							result[actualLastIdx-1].Surface = baseForm
+							result[actualLastIdx-1].InflectionForm = "基本形"
 						}
 						// Remove ます
-						result = result[:lastIdx]
+						result = result[:actualLastIdx]
+						// Add back any punctuation
+						for i := actualLastIdx + 1; i <= lastIdx; i++ {
+							result = append(result, morphemes[i])
+						}
 					}
 				}
 			case "過去": // ました → 過去形（タ形）
-				if lastIdx > 0 {
-					prev := result[lastIdx-1]
+				if actualLastIdx > 0 {
+					prev := result[actualLastIdx-1]
 					if prev.PartOfSpeech == "動詞" {
 						taForm := c.getVerbTaForm(prev)
 						if taForm != "" {
-							result[lastIdx-1].Surface = taForm
-							result[lastIdx-1].InflectionForm = "終止形"
+							result[actualLastIdx-1].Surface = taForm
+							result[actualLastIdx-1].InflectionForm = "終止形"
 						}
 						// Remove ました
-						result = result[:lastIdx]
+						result = result[:actualLastIdx]
+						// Add back any punctuation
+						for i := actualLastIdx + 1; i <= lastIdx; i++ {
+							result = append(result, morphemes[i])
+						}
 					}
 				}
 			case "否定": // ません → 否定形（ナイ形）
-				if lastIdx > 0 {
-					prev := result[lastIdx-1]
+				if actualLastIdx > 0 {
+					prev := result[actualLastIdx-1]
 					if prev.PartOfSpeech == "動詞" {
 						naiForm := c.getVerbNaiForm(prev)
 						if naiForm != "" {
-							result[lastIdx-1].Surface = naiForm
-							result[lastIdx-1].InflectionForm = "終止形"
+							result[actualLastIdx-1].Surface = naiForm
+							result[actualLastIdx-1].InflectionForm = "終止形"
 						}
 						// Remove ません
-						result = result[:lastIdx]
+						result = result[:actualLastIdx]
+						// Add back any punctuation
+						for i := actualLastIdx + 1; i <= lastIdx; i++ {
+							result = append(result, morphemes[i])
+						}
 					}
 				}
 			}
@@ -237,23 +258,36 @@ func (c *Converter) convertAdjectivePoliteToCase(morphemes []MorphemeInfo) []Mor
 	result := make([]MorphemeInfo, len(morphemes))
 	copy(result, morphemes)
 	
+	// Skip punctuation at the end
 	lastIdx := len(result) - 1
-	if lastIdx >= 0 {
-		last := result[lastIdx]
+	actualLastIdx := lastIdx
+	for actualLastIdx >= 0 && result[actualLastIdx].PartOfSpeech == "記号" {
+		actualLastIdx--
+	}
+	
+	if actualLastIdx >= 0 {
+		last := result[actualLastIdx]
+		
+		slog.Debug("checking adjective polite conversion", "surface", last.Surface, "pos", last.PartOfSpeech)
 		
 		// Handle いです → い
-		if last.Surface == "です" && lastIdx > 0 {
-			prev := result[lastIdx-1]
+		if last.Surface == "です" && actualLastIdx > 0 {
+			prev := result[actualLastIdx-1]
 			if prev.PartOfSpeech == "形容詞" && strings.HasSuffix(prev.Surface, "い") {
+				slog.Debug("removing です after adjective")
 				// Remove です
-				result = result[:lastIdx]
+				result = result[:actualLastIdx]
+				// Add back any punctuation
+				for i := actualLastIdx + 1; i <= lastIdx; i++ {
+					result = append(result, morphemes[i])
+				}
 			}
 		}
 		
 		// Handle くありません → くない
 		if strings.HasSuffix(last.Surface, "くありません") {
 			base := strings.TrimSuffix(last.Surface, "くありません")
-			result[lastIdx].Surface = base + "くない"
+			result[actualLastIdx].Surface = base + "くない"
 		}
 	}
 	
