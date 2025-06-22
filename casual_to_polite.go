@@ -74,7 +74,7 @@ func (c *Converter) convertVerbCasualToPolite(morphemes []MorphemeInfo) []Morphe
 	if actualLastIdx >= 0 {
 		last := result[actualLastIdx]
 		
-		slog.Debug("checking verb conversion", "surface", last.Surface, "pos", last.PartOfSpeech, "inflection_form", last.InflectionForm, "base_form", last.BaseForm)
+		slog.Debug("checking verb conversion", "surface", last.Surface, "pos", last.PartOfSpeech, "inflection_form", last.InflectionForm, "base_form", last.BaseForm, "inflection_type", last.InflectionType)
 		
 		// Check if it's a verb in 基本形, 終止形 or 連体形
 		if last.PartOfSpeech == "動詞" && 
@@ -84,8 +84,23 @@ func (c *Converter) convertVerbCasualToPolite(morphemes []MorphemeInfo) []Morphe
 			renyoukei := c.getVerbRenyoukei(last)
 			if renyoukei != "" {
 				slog.Debug("converting verb", "original", last.Surface, "renyoukei", renyoukei)
-				result[actualLastIdx].Surface = renyoukei + "ます"
+				result[actualLastIdx].Surface = renyoukei
 				result[actualLastIdx].InflectionForm = "連用形"
+				
+				// Add ます as a separate morpheme
+				masuMorpheme := MorphemeInfo{
+					Surface:        "ます",
+					PartOfSpeech:   "助動詞",
+					InflectionForm: "基本形",
+					BaseForm:       "ます",
+				}
+				
+				// Insert ます before punctuation
+				newResult := make([]MorphemeInfo, len(result)+1)
+				copy(newResult[:actualLastIdx+1], result[:actualLastIdx+1])
+				newResult[actualLastIdx+1] = masuMorpheme
+				copy(newResult[actualLastIdx+2:], result[actualLastIdx+1:])
+				result = newResult
 			}
 		}
 	}
@@ -102,8 +117,8 @@ func (c *Converter) getVerbRenyoukei(morpheme MorphemeInfo) string {
 	
 	// Handle common verb conjugation patterns
 	switch morpheme.InflectionType {
-	case "五段・カ行イ音便":
-		// 書く → 書き
+	case "五段・カ行イ音便", "五段・カ行促音便":
+		// 書く → 書き, 行く → 行き
 		if strings.HasSuffix(baseForm, "く") {
 			return strings.TrimSuffix(baseForm, "く") + "き"
 		}
@@ -281,6 +296,7 @@ func (c *Converter) convertAuxiliaryCasualToPolite(morphemes []MorphemeInfo) []M
 	
 	// Handle complex patterns first (multi-morpheme expressions)
 	result = c.handleComplexCasualToPolite(result)
+	result = c.handleNegativeCasualToPolite(result)
 	
 	// Handle single morpheme patterns
 	for i := len(result) - 1; i >= 0; i-- {
@@ -385,7 +401,23 @@ func (c *Converter) handlePastTenseCasualToPolite(morphemes []MorphemeInfo) []Mo
 				prev := result[actualLastIdx-1]
 				slog.Debug("checking previous morpheme for past tense", "surface", prev.Surface, "pos", prev.PartOfSpeech, "inflection_form", prev.InflectionForm)
 				
-				if prev.PartOfSpeech == "動詞" && (prev.InflectionForm == "連用タ接続" || prev.InflectionForm == "連用形") {
+				// Handle negative past tense: なかっ + た → ませんでした
+				if prev.PartOfSpeech == "助動詞" && prev.Surface == "なかっ" && prev.BaseForm == "ない" {
+					if actualLastIdx > 1 {
+						verb := result[actualLastIdx-2]
+						if verb.PartOfSpeech == "動詞" {
+							// Convert to ませんでした
+							renyoukei := c.getVerbRenyoukei(verb)
+							if renyoukei != "" {
+								slog.Debug("converting negative past tense", "original_verb", verb.Surface, "renyoukei", renyoukei)
+								result[actualLastIdx-2].Surface = renyoukei
+								result[actualLastIdx-1].Surface = "ませんでし"
+								result[actualLastIdx].Surface = "た"
+								result[actualLastIdx].BaseForm = "た"
+							}
+						}
+					}
+				} else if prev.PartOfSpeech == "動詞" && (prev.InflectionForm == "連用タ接続" || prev.InflectionForm == "連用形") {
 					// Convert verb to 連用形 and change た to ました
 					renyoukei := c.getVerbRenyoukeiFromTaForm(prev)
 					if renyoukei != "" {
@@ -442,23 +474,35 @@ func (c *Converter) handleNegativeCasualToPolite(morphemes []MorphemeInfo) []Mor
 		return morphemes
 	}
 	
+	slog.Debug("handleNegativeCasualToPolite called", "count", len(morphemes))
+	
 	result := make([]MorphemeInfo, len(morphemes))
 	copy(result, morphemes)
 	
+	// Skip punctuation at the end
 	lastIdx := len(result) - 1
-	if lastIdx >= 0 {
-		last := result[lastIdx]
+	actualLastIdx := lastIdx
+	for actualLastIdx >= 0 && result[actualLastIdx].PartOfSpeech == "記号" {
+		actualLastIdx--
+	}
+	
+	if actualLastIdx >= 0 {
+		last := result[actualLastIdx]
+		
+		slog.Debug("checking negative conversion", "surface", last.Surface, "pos", last.PartOfSpeech, "base_form", last.BaseForm)
 		
 		// Check if it's negative auxiliary ない
 		if last.PartOfSpeech == "助動詞" && last.BaseForm == "ない" {
-			if lastIdx > 0 {
-				prev := result[lastIdx-1]
+			if actualLastIdx > 0 {
+				prev := result[actualLastIdx-1]
+				slog.Debug("checking previous morpheme for negative", "surface", prev.Surface, "pos", prev.PartOfSpeech)
 				if prev.PartOfSpeech == "動詞" {
 					// Convert verb to 連用形 and change ない to ません
 					renyoukei := c.getVerbRenyoukei(prev)
 					if renyoukei != "" {
-						result[lastIdx-1].Surface = renyoukei
-						result[lastIdx].Surface = "ません"
+						slog.Debug("converting negative form", "verb", prev.Surface, "renyoukei", renyoukei)
+						result[actualLastIdx-1].Surface = renyoukei
+						result[actualLastIdx].Surface = "ません"
 					}
 				}
 			}
@@ -467,7 +511,7 @@ func (c *Converter) handleNegativeCasualToPolite(morphemes []MorphemeInfo) []Mor
 		// Handle i-adjective negative: ～くない → ～くありません or ～くないです
 		if last.PartOfSpeech == "形容詞" && strings.HasSuffix(last.Surface, "くない") {
 			base := strings.TrimSuffix(last.Surface, "くない")
-			result[lastIdx].Surface = base + "くありません"
+			result[actualLastIdx].Surface = base + "くありません"
 		}
 	}
 	
@@ -515,3 +559,4 @@ func (c *Converter) convertConjunctionCasualToPolite(morphemes []MorphemeInfo) [
 	
 	return result
 }
+

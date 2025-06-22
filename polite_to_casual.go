@@ -49,6 +49,7 @@ func (c *Converter) convertPoliteToCasualSegment(segment string) (string, error)
 	converted = c.convertAdjectivePoliteToCase(converted)
 	converted = c.convertNounPoliteToCase(converted)
 	converted = c.convertAuxiliaryPoliteToCase(converted)
+	converted = c.handleNegativePoliteToCase(converted)
 	converted = c.convertConjunctionPoliteToCase(converted)
 	
 	result := c.reconstructSentence(converted)
@@ -446,4 +447,125 @@ func (c *Converter) convertConjunctionPoliteToCase(morphemes []MorphemeInfo) []M
 	}
 	
 	return result
+}
+// handleNegativePoliteToCase converts negative forms from polite to casual.
+// ～ません → ～ない
+func (c *Converter) handleNegativePoliteToCase(morphemes []MorphemeInfo) []MorphemeInfo {
+	if len(morphemes) == 0 {
+		return morphemes
+	}
+	
+	slog.Debug("handleNegativePoliteToCase called", "count", len(morphemes))
+	
+	result := make([]MorphemeInfo, len(morphemes))
+	copy(result, morphemes)
+	
+	// Look for ませ + ん pattern (ません)
+	for i := 0; i < len(result)-1; i++ {
+		if result[i].Surface == "ませ" && result[i].PartOfSpeech == "助動詞" &&
+		   result[i+1].Surface == "ん" && result[i+1].PartOfSpeech == "助動詞" {
+			
+			slog.Debug("found ませ+ん pattern", "index", i)
+			
+			// Find the verb before ませ
+			if i > 0 && result[i-1].PartOfSpeech == "動詞" {
+				verb := result[i-1]
+				slog.Debug("converting negative form", "verb", verb.Surface, "base_form", verb.BaseForm)
+				
+				// Convert verb from 連用形 to 未然形 and replace ません with ない
+				mizenkei := c.getVerbMizenkei(verb)
+				if mizenkei != "" {
+					slog.Debug("converting to mizenkei", "original", verb.Surface, "mizenkei", mizenkei)
+					result[i-1].Surface = mizenkei
+					result[i].Surface = "ない"
+					result[i].BaseForm = "ない"
+					result[i].PartOfSpeech = "助動詞"
+					
+					// Remove the ん morpheme
+					newResult := make([]MorphemeInfo, len(result)-1)
+					copy(newResult[:i+1], result[:i+1])
+					copy(newResult[i+1:], result[i+2:])
+					result = newResult
+					break
+				}
+			}
+		}
+	}
+	
+	return result
+}
+
+// getVerbMizenkei converts a verb to its 未然形 (irrealis form) for negative conjugation.
+func (c *Converter) getVerbMizenkei(morpheme MorphemeInfo) string {
+	baseForm := morpheme.BaseForm
+	if baseForm == "" {
+		baseForm = morpheme.Surface
+	}
+	
+	// Handle common verb conjugation patterns
+	switch morpheme.InflectionType {
+	case "五段・カ行イ音便", "五段・カ行促音便":
+		// 書く → 書か, 行く → 行か
+		if strings.HasSuffix(baseForm, "く") {
+			return strings.TrimSuffix(baseForm, "く") + "か"
+		}
+	case "五段・ガ行":
+		// 泳ぐ → 泳が
+		if strings.HasSuffix(baseForm, "ぐ") {
+			return strings.TrimSuffix(baseForm, "ぐ") + "が"
+		}
+	case "五段・サ行":
+		// 話す → 話さ
+		if strings.HasSuffix(baseForm, "す") {
+			return strings.TrimSuffix(baseForm, "す") + "さ"
+		}
+	case "五段・タ行":
+		// 立つ → 立た
+		if strings.HasSuffix(baseForm, "つ") {
+			return strings.TrimSuffix(baseForm, "つ") + "た"
+		}
+	case "五段・ナ行":
+		// 死ぬ → 死な
+		if strings.HasSuffix(baseForm, "ぬ") {
+			return strings.TrimSuffix(baseForm, "ぬ") + "な"
+		}
+	case "五段・バ行":
+		// 呼ぶ → 呼ば
+		if strings.HasSuffix(baseForm, "ぶ") {
+			return strings.TrimSuffix(baseForm, "ぶ") + "ば"
+		}
+	case "五段・マ行":
+		// 読む → 読ま
+		if strings.HasSuffix(baseForm, "む") {
+			return strings.TrimSuffix(baseForm, "む") + "ま"
+		}
+	case "五段・ラ行":
+		// 作る → 作ら
+		if strings.HasSuffix(baseForm, "る") {
+			return strings.TrimSuffix(baseForm, "る") + "ら"
+		}
+	case "五段・ワ行促音便":
+		// 言う → 言わ
+		if strings.HasSuffix(baseForm, "う") {
+			return strings.TrimSuffix(baseForm, "う") + "わ"
+		}
+	case "一段":
+		// 食べる → 食べ
+		if strings.HasSuffix(baseForm, "る") {
+			return strings.TrimSuffix(baseForm, "る")
+		}
+	case "カ変":
+		// 来る → 来
+		if baseForm == "来る" {
+			return "来"
+		}
+	case "サ変":
+		// する → し
+		if baseForm == "する" {
+			return "し"
+		}
+	}
+	
+	// Fallback: return the surface form
+	return morpheme.Surface
 }
