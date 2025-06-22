@@ -102,4 +102,167 @@
 ### プロジェクト構成
 
 * ルートディレクトリ: パッケージ github.com/ymotongpoo/kjconv をライブラリとして実装するパッケージ
-* cmd: パッケージ github.com/ymotongpoo/kjconv をインポートし、grhコマンドを実装するためのパッケージ
+* cmd: パッケージ github.com/ymotongpoo/kjconv をインポートし、kjconvコマンドを実装するためのパッケージ
+
+## 実装状況
+
+本プロジェクトは完全に実装済みです。以下の機能が利用可能です：
+
+### 実装済み機能
+
+* ✅ 常体→敬体変換
+  * 動詞の基本形・終止形・連体形 → 連用形+「ます」
+  * 形容詞の基本形・終止形・連体形 → +「です」
+  * 名詞+「だ」→「です」、「である」→「です」
+  * 助動詞変換（だろう→でしょう等）
+* ✅ 敬体→常体変換
+  * 「です」→「だ」変換
+  * 「ます」系→基本形変換
+  * 形容詞+「です」→形容詞変換
+* ✅ 動詞活用処理（五段、一段、カ変、サ変）
+* ✅ 文分割処理（句点、疑問符、感嘆符）
+* ✅ 引用文検出（「」『』）
+* ✅ 包括的なユニットテスト（28テストケース）
+
+## ファイル構成
+
+```
+kjconv/
+├── README.md              # 本ファイル（仕様書）
+├── AmazonQ.md            # 実装指針
+├── LICENSE               # ライセンスファイル
+├── go.mod                # Goモジュール設定
+├── go.sum                # 依存関係チェックサム
+├── kjconv                # ビルド済みコマンドラインツール
+│
+├── kjconv.go             # メインライブラリ（Converter構造体）
+├── morpheme.go           # 形態素解析機能
+├── sentence.go           # 文分割・引用文処理
+├── casual_to_polite.go   # 常体→敬体変換エンジン
+├── polite_to_casual.go   # 敬体→常体変換エンジン
+│
+├── cmd/
+│   └── main.go           # コマンドラインツール実装
+│
+└── テストファイル
+    ├── kjconv_test.go           # メイン変換機能テスト
+    ├── morpheme_test.go         # 形態素解析テスト
+    ├── sentence_test.go         # 文分割・引用文テスト
+    └── verb_conjugation_test.go # 動詞活用テスト
+```
+
+## インストール・ビルド
+
+### 前提条件
+* Go 1.24.2 以上
+
+### ビルド方法
+
+```bash
+# ライブラリのビルド
+go build
+
+# コマンドラインツールのビルド
+go build -o kjconv ./cmd
+
+# テストの実行
+go test
+```
+
+## 使用方法
+
+### コマンドラインツール
+
+```bash
+# 常体→敬体変換
+./kjconv -mode="casual-to-polite" -text="今日は晴れだ。本を読む。"
+# 出力: 今日は晴れです。本を読みます。
+
+# 敬体→常体変換
+./kjconv -mode="polite-to-casual" -text="今日は晴れです。本を読みます。"
+# 出力: 今日は晴れだ。本を読む。
+
+# デバッグモード（詳細ログ出力）
+./kjconv -mode="casual-to-polite" -text="本を読む。" -debug
+
+# ヘルプ表示
+./kjconv -h
+```
+
+### ライブラリとしての使用
+
+```go
+package main
+
+import (
+    "fmt"
+    "log"
+    "github.com/ymotongpoo/kjconv"
+)
+
+func main() {
+    // Converterインスタンスを作成
+    converter, err := kjconv.NewConverter()
+    if err != nil {
+        log.Fatal(err)
+    }
+
+    // 常体→敬体変換
+    result, err := converter.Convert("今日は晴れだ。", kjconv.CasualToPolite)
+    if err != nil {
+        log.Fatal(err)
+    }
+    fmt.Println(result) // 出力: 今日は晴れです。
+
+    // 敬体→常体変換
+    result, err = converter.Convert("今日は晴れです。", kjconv.PoliteToCasual)
+    if err != nil {
+        log.Fatal(err)
+    }
+    fmt.Println(result) // 出力: 今日は晴れだ。
+}
+```
+
+## 変換例
+
+### 常体→敬体変換
+
+| 入力 | 出力 |
+|------|------|
+| 今日は晴れだ。 | 今日は晴れです。 |
+| 本を読む。 | 本を読みます。 |
+| この花は美しい。 | この花は美しいです。 |
+| 勉強する。 | 勉強します。 |
+| 学校に来る。 | 学校に来ます。 |
+
+### 敬体→常体変換
+
+| 入力 | 出力 |
+|------|------|
+| 今日は晴れです。 | 今日は晴れだ。 |
+| 本を読みます。 | 本を読む。 |
+| この花は美しいです。 | この花は美しい。 |
+| 勉強します。 | 勉強する。 |
+| 学校に来ます。 | 学校に来る。 |
+
+## テスト
+
+プロジェクトには包括的なユニットテストが含まれています：
+
+```bash
+# 全テスト実行
+go test
+
+# 詳細出力でテスト実行
+go test -v
+
+# カバレッジ付きでテスト実行
+go test -cover
+```
+
+**テスト内容:**
+- 28個のテストケース
+- 主要な変換パターンの網羅
+- 動詞活用（五段、一段、カ変、サ変）
+- エラーハンドリング
+- 文分割・引用文処理
