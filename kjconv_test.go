@@ -73,12 +73,16 @@ func TestConvert_CasualToPolite(t *testing.T) {
 			input:    "今日は晴れだ。本を読む。",
 			expected: "今日は晴れです。本を読みます。",
 		},
-		// TODO: 引用文の処理は後で実装
-		// {
-		// 	name:     "引用文は変換しない",
-		// 	input:    "彼は「今日は晴れだ」と言った。",
-		// 	expected: "彼は「今日は晴れだ」と言いました。",
-		// },
+		{
+			name:     "引用文は変換しない",
+			input:    "彼は「今日は晴れだ」と言った。",
+			expected: "彼は「今日は晴れだ」と言いました。",
+		},
+		{
+			name:     "『』引用文は変換しない",
+			input:    "彼は『本を読む』と言った。",
+			expected: "彼は『本を読む』と言いました。",
+		},
 	}
 
 	for _, tt := range tests {
@@ -126,12 +130,16 @@ func TestConvert_PoliteToCasual(t *testing.T) {
 			input:    "今日は晴れです。本を読みます。",
 			expected: "今日は晴れだ。本を読む。",
 		},
-		// TODO: 引用文の処理は後で実装
-		// {
-		// 	name:     "引用文は変換しない",
-		// 	input:    "彼は「今日は晴れです」と言った。",
-		// 	expected: "彼は「今日は晴れです」と言った。",
-		// },
+		{
+			name:     "引用文は変換しない",
+			input:    "彼は「今日は晴れです」と言った。",
+			expected: "彼は「今日は晴れです」と言った。",
+		},
+		{
+			name:     "『』引用文は変換しない",
+			input:    "彼は『本を読みます』と言った。",
+			expected: "彼は『本を読みます』と言った。",
+		},
 	}
 
 	for _, tt := range tests {

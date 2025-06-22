@@ -15,18 +15,30 @@ func (c *Converter) convertCasualToPolite(sentence string) (string, error) {
 		return sentence, nil
 	}
 	
-	morphemes, err := c.AnalyzeMorphemes(sentence)
+	// Handle text with embedded quotes
+	if ContainsQuotedText(sentence) {
+		slog.Debug("processing text with embedded quotes", "sentence", sentence)
+		return ProcessTextWithQuotes(sentence, c.convertCasualToPoliteSegment)
+	}
+	
+	return c.convertCasualToPoliteSegment(sentence)
+}
+
+// convertCasualToPoliteSegment converts a text segment (without quotes) from casual to polite form.
+func (c *Converter) convertCasualToPoliteSegment(segment string) (string, error) {
+	if strings.TrimSpace(segment) == "" {
+		return segment, nil
+	}
+	
+	morphemes, err := c.AnalyzeMorphemes(segment)
 	if err != nil {
 		return "", err
 	}
 	
-	slog.Debug("morphemes analyzed", "count", len(morphemes))
-	for i, m := range morphemes {
-		slog.Debug("morpheme", "index", i, "surface", m.Surface, "pos", m.PartOfSpeech, "inflection_form", m.InflectionForm, "base_form", m.BaseForm)
-	}
+	slog.Debug("morphemes analyzed for segment", "segment", segment, "count", len(morphemes))
 	
 	if len(morphemes) == 0 {
-		return sentence, nil
+		return segment, nil
 	}
 	
 	// Convert from the end of the sentence
@@ -36,7 +48,7 @@ func (c *Converter) convertCasualToPolite(sentence string) (string, error) {
 	converted = c.convertAuxiliaryCasualToPolite(converted)
 	
 	result := c.reconstructSentence(converted)
-	slog.Debug("conversion result", "original", sentence, "converted", result)
+	slog.Debug("segment conversion result", "original", segment, "converted", result)
 	
 	return result, nil
 }
@@ -351,23 +363,35 @@ func (c *Converter) handlePastTenseCasualToPolite(morphemes []MorphemeInfo) []Mo
 	result := make([]MorphemeInfo, len(morphemes))
 	copy(result, morphemes)
 	
+	// Skip punctuation at the end
 	lastIdx := len(result) - 1
-	if lastIdx >= 0 {
-		last := result[lastIdx]
+	actualLastIdx := lastIdx
+	for actualLastIdx >= 0 && result[actualLastIdx].PartOfSpeech == "記号" {
+		actualLastIdx--
+	}
+	
+	if actualLastIdx >= 0 {
+		last := result[actualLastIdx]
+		
+		slog.Debug("checking past tense conversion", "surface", last.Surface, "pos", last.PartOfSpeech, "base_form", last.BaseForm, "inflection_form", last.InflectionForm)
 		
 		// Check if it's a past tense auxiliary た/だ
 		if last.PartOfSpeech == "助動詞" && (last.Surface == "た" || last.Surface == "だ") &&
-		   last.InflectionForm == "終止形" {
+		   last.BaseForm == "た" && last.InflectionForm == "基本形" {
 			
 			// Find the verb before た/だ and convert to ました
-			if lastIdx > 0 {
-				prev := result[lastIdx-1]
-				if prev.PartOfSpeech == "動詞" {
+			if actualLastIdx > 0 {
+				prev := result[actualLastIdx-1]
+				slog.Debug("checking previous morpheme for past tense", "surface", prev.Surface, "pos", prev.PartOfSpeech, "inflection_form", prev.InflectionForm)
+				
+				if prev.PartOfSpeech == "動詞" && (prev.InflectionForm == "連用タ接続" || prev.InflectionForm == "連用形") {
 					// Convert verb to 連用形 and change た to ました
-					renyoukei := c.getVerbRenyoukei(prev)
+					renyoukei := c.getVerbRenyoukeiFromTaForm(prev)
 					if renyoukei != "" {
-						result[lastIdx-1].Surface = renyoukei
-						result[lastIdx].Surface = "ました"
+						slog.Debug("converting past tense", "original_verb", prev.Surface, "renyoukei", renyoukei)
+						result[actualLastIdx-1].Surface = renyoukei
+						result[actualLastIdx].Surface = "ました"
+						result[actualLastIdx].BaseForm = "ます"
 					}
 				}
 			}
@@ -375,6 +399,39 @@ func (c *Converter) handlePastTenseCasualToPolite(morphemes []MorphemeInfo) []Mo
 	}
 	
 	return result
+}
+
+// getVerbRenyoukeiFromTaForm converts a verb in タ接続 form to 連用形.
+func (c *Converter) getVerbRenyoukeiFromTaForm(morpheme MorphemeInfo) string {
+	baseForm := morpheme.BaseForm
+	if baseForm == "" {
+		baseForm = morpheme.Surface
+	}
+	
+	// If it's already in a form that can be used with ます, use it directly
+	if morpheme.InflectionForm == "連用タ接続" {
+		// For タ接続 forms, we can often use them directly with ます
+		surface := morpheme.Surface
+		
+		// Handle common patterns
+		if strings.HasSuffix(surface, "っ") {
+			// 言っ → 言い
+			return strings.TrimSuffix(surface, "っ") + "い"
+		}
+		if strings.HasSuffix(surface, "ん") {
+			// 読ん → 読み (for 読んだ)
+			return strings.TrimSuffix(surface, "ん") + "み"
+		}
+		if strings.HasSuffix(surface, "い") {
+			// 書い → 書き (for 書いた)
+			return strings.TrimSuffix(surface, "い") + "き"
+		}
+		
+		// Fallback: use the standard renyoukei conversion
+		return c.getVerbRenyoukei(morpheme)
+	}
+	
+	return c.getVerbRenyoukei(morpheme)
 }
 
 // handleNegativeCasualToPolite converts negative form from casual to polite.

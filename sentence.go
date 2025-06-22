@@ -75,29 +75,50 @@ func ProcessTextWithQuotes(text string, processor func(string) (string, error)) 
 		return processor(text)
 	}
 	
-	// Simple approach: split by quotes and process non-quoted parts
 	var result strings.Builder
+	var currentSegment strings.Builder
 	var inQuote bool
 	var quoteChar rune
 	
-	for _, r := range text {
+	runes := []rune(text)
+	for _, r := range runes {
 		if !inQuote && (r == '「' || r == '『') {
+			// Process the segment before the quote
+			if currentSegment.Len() > 0 {
+				processed, err := processor(currentSegment.String())
+				if err != nil {
+					return "", err
+				}
+				result.WriteString(processed)
+				currentSegment.Reset()
+			}
+			
+			// Start quote
 			inQuote = true
 			quoteChar = r
 			result.WriteRune(r)
 		} else if inQuote && ((r == '」' && quoteChar == '「') || (r == '』' && quoteChar == '『')) {
+			// End quote - add the quoted content as-is
+			result.WriteString(currentSegment.String())
+			result.WriteRune(r)
+			currentSegment.Reset()
 			inQuote = false
-			result.WriteRune(r)
 		} else if inQuote {
-			result.WriteRune(r)
+			// Inside quote - collect without processing
+			currentSegment.WriteRune(r)
 		} else {
-			// Process non-quoted character
-			processed, err := processor(string(r))
-			if err != nil {
-				return "", err
-			}
-			result.WriteString(processed)
+			// Outside quote - collect for processing
+			currentSegment.WriteRune(r)
 		}
+	}
+	
+	// Process any remaining segment
+	if currentSegment.Len() > 0 {
+		processed, err := processor(currentSegment.String())
+		if err != nil {
+			return "", err
+		}
+		result.WriteString(processed)
 	}
 	
 	return result.String(), nil

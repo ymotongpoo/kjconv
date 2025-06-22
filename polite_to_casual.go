@@ -15,18 +15,33 @@ func (c *Converter) convertPoliteToCasual(sentence string) (string, error) {
 		return sentence, nil
 	}
 	
-	morphemes, err := c.AnalyzeMorphemes(sentence)
+	// Handle text with embedded quotes
+	if ContainsQuotedText(sentence) {
+		slog.Debug("processing text with embedded quotes", "sentence", sentence)
+		return ProcessTextWithQuotes(sentence, c.convertPoliteToCasualSegment)
+	}
+	
+	return c.convertPoliteToCasualSegment(sentence)
+}
+
+// convertPoliteToCasualSegment converts a text segment (without quotes) from polite to casual form.
+func (c *Converter) convertPoliteToCasualSegment(segment string) (string, error) {
+	if strings.TrimSpace(segment) == "" {
+		return segment, nil
+	}
+	
+	morphemes, err := c.AnalyzeMorphemes(segment)
 	if err != nil {
 		return "", err
 	}
 	
-	slog.Debug("morphemes analyzed", "count", len(morphemes))
+	slog.Debug("morphemes analyzed for segment", "segment", segment, "count", len(morphemes))
 	for i, m := range morphemes {
-		slog.Debug("morpheme", "index", i, "surface", m.Surface, "pos", m.PartOfSpeech, "inflection_form", m.InflectionForm, "base_form", m.BaseForm)
+		slog.Debug("morpheme detail", "index", i, "surface", m.Surface, "pos", m.PartOfSpeech, "inflection_form", m.InflectionForm, "base_form", m.BaseForm)
 	}
 	
 	if len(morphemes) == 0 {
-		return sentence, nil
+		return segment, nil
 	}
 	
 	// Convert from the end of the sentence
@@ -36,7 +51,7 @@ func (c *Converter) convertPoliteToCasual(sentence string) (string, error) {
 	converted = c.convertAuxiliaryPoliteToCase(converted)
 	
 	result := c.reconstructSentence(converted)
-	slog.Debug("conversion result", "original", sentence, "converted", result)
+	slog.Debug("segment conversion result", "original", segment, "converted", result)
 	
 	return result, nil
 }
@@ -113,6 +128,31 @@ func (c *Converter) convertVerbPoliteToCase(morphemes []MorphemeInfo) []Morpheme
 						}
 						// Remove ません
 						result = result[:actualLastIdx]
+						// Add back any punctuation
+						for i := actualLastIdx + 1; i <= lastIdx; i++ {
+							result = append(result, morphemes[i])
+						}
+					}
+				}
+			}
+		}
+		
+		// Handle ました pattern: まし + た
+		if last.Surface == "た" && last.PartOfSpeech == "助動詞" && last.BaseForm == "た" &&
+		   actualLastIdx > 0 {
+			prev := result[actualLastIdx-1]
+			if prev.Surface == "まし" && prev.PartOfSpeech == "助動詞" && prev.BaseForm == "ます" &&
+			   actualLastIdx > 1 {
+				verb := result[actualLastIdx-2]
+				if verb.PartOfSpeech == "動詞" && verb.InflectionForm == "連用形" {
+					// Convert 言い + まし + た → 言った
+					taForm := c.getVerbTaForm(verb)
+					if taForm != "" {
+						slog.Debug("converting ました pattern", "verb", verb.Surface, "ta_form", taForm)
+						result[actualLastIdx-2].Surface = taForm
+						result[actualLastIdx-2].InflectionForm = "終止形"
+						// Remove まし and た
+						result = result[:actualLastIdx-1]
 						// Add back any punctuation
 						for i := actualLastIdx + 1; i <= lastIdx; i++ {
 							result = append(result, morphemes[i])

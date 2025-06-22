@@ -125,3 +125,61 @@ func TestIsQuotedText(t *testing.T) {
 		})
 	}
 }
+
+func TestProcessTextWithQuotes(t *testing.T) {
+	// Create a converter for testing
+	converter, err := NewConverter()
+	if err != nil {
+		t.Fatalf("NewConverter() failed: %v", err)
+	}
+
+	// Processor that uses actual conversion logic
+	processor := func(text string) (string, error) {
+		return converter.convertCasualToPoliteSegment(text)
+	}
+
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{
+			name:     "引用文なし",
+			input:    "今日は晴れだ。",
+			expected: "今日は晴れです。",
+		},
+		{
+			name:     "引用文あり（「」）",
+			input:    "彼は「今日は晴れだ」と言った。",
+			expected: "彼は「今日は晴れだ」と言いました。",
+		},
+		{
+			name:     "引用文あり（『』）",
+			input:    "彼は『今日は晴れだ』と言った。",
+			expected: "彼は『今日は晴れだ』と言いました。",
+		},
+		{
+			name:     "複数引用文",
+			input:    "「今日は晴れだ」と「明日は雨だ」と言った。",
+			expected: "「今日は晴れだ」と「明日は雨だ」と言いました。",
+		},
+		{
+			name:     "引用文前後にテキスト",
+			input:    "昨日彼は「今日は晴れだ」と言った。",
+			expected: "昨日彼は「今日は晴れだ」と言いました。",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result, err := ProcessTextWithQuotes(tt.input, processor)
+			if err != nil {
+				t.Errorf("ProcessTextWithQuotes() failed: %v", err)
+				return
+			}
+			if result != tt.expected {
+				t.Errorf("ProcessTextWithQuotes(%q) = %q, expected %q", tt.input, result, tt.expected)
+			}
+		})
+	}
+}
