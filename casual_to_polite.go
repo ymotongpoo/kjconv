@@ -1,23 +1,18 @@
 package kjconv
 
 import (
-	"log/slog"
 	"strings"
 )
 
 // convertCasualToPolite converts a sentence from casual form to polite form.
 func (c *Converter) convertCasualToPolite(sentence string) (string, error) {
-	slog.Debug("converting casual to polite", "sentence", sentence)
-	
 	if IsQuotedText(sentence) {
 		// Don't convert quoted text
-		slog.Debug("skipping quoted text", "sentence", sentence)
 		return sentence, nil
 	}
 	
 	// Handle text with embedded quotes
 	if ContainsQuotedText(sentence) {
-		slog.Debug("processing text with embedded quotes", "sentence", sentence)
 		return ProcessTextWithQuotes(sentence, c.convertCasualToPoliteSegment)
 	}
 	
@@ -35,8 +30,6 @@ func (c *Converter) convertCasualToPoliteSegment(segment string) (string, error)
 		return "", err
 	}
 	
-	slog.Debug("morphemes analyzed for segment", "segment", segment, "count", len(morphemes))
-	
 	if len(morphemes) == 0 {
 		return segment, nil
 	}
@@ -49,7 +42,6 @@ func (c *Converter) convertCasualToPoliteSegment(segment string) (string, error)
 	converted = c.convertConjunctionCasualToPolite(converted)
 	
 	result := c.reconstructSentence(converted)
-	slog.Debug("segment conversion result", "original", segment, "converted", result)
 	
 	return result, nil
 }
@@ -74,8 +66,6 @@ func (c *Converter) convertVerbCasualToPolite(morphemes []MorphemeInfo) []Morphe
 	if actualLastIdx >= 0 {
 		last := result[actualLastIdx]
 		
-		slog.Debug("checking verb conversion", "surface", last.Surface, "pos", last.PartOfSpeech, "inflection_form", last.InflectionForm, "base_form", last.BaseForm, "inflection_type", last.InflectionType)
-		
 		// Check if it's a verb in 基本形, 終止形 or 連体形
 		if last.PartOfSpeech == "動詞" && 
 		   (last.InflectionForm == "基本形" || last.InflectionForm == "終止形" || last.InflectionForm == "連体形") {
@@ -83,7 +73,6 @@ func (c *Converter) convertVerbCasualToPolite(morphemes []MorphemeInfo) []Morphe
 			// Convert to 連用形 + ます
 			renyoukei := c.getVerbRenyoukei(last)
 			if renyoukei != "" {
-				slog.Debug("converting verb", "original", last.Surface, "renyoukei", renyoukei)
 				result[actualLastIdx].Surface = renyoukei
 				result[actualLastIdx].InflectionForm = "連用形"
 				
@@ -218,13 +207,11 @@ func (c *Converter) convertAdjectiveCasualToPolite(morphemes []MorphemeInfo) []M
 	if actualLastIdx >= 0 {
 		last := result[actualLastIdx]
 		
-		slog.Debug("checking adjective conversion", "surface", last.Surface, "pos", last.PartOfSpeech, "detail1", last.PartOfSpeechDetail1, "inflection_form", last.InflectionForm)
 		
 		// Check if it's an i-adjective in 基本形, 終止形 or 連体形
 		if last.PartOfSpeech == "形容詞" && last.PartOfSpeechDetail1 == "自立" &&
 		   (last.InflectionForm == "基本形" || last.InflectionForm == "終止形" || last.InflectionForm == "連体形") {
 			
-			slog.Debug("converting adjective", "original", last.Surface)
 			result[actualLastIdx].Surface = last.Surface + "です"
 		}
 	}
@@ -253,12 +240,9 @@ func (c *Converter) convertNounCasualToPolite(morphemes []MorphemeInfo) []Morphe
 	if actualLastIdx >= 0 {
 		last := result[actualLastIdx]
 		
-		slog.Debug("checking noun conversion", "surface", last.Surface, "pos", last.PartOfSpeech, "base_form", last.BaseForm, "inflection_form", last.InflectionForm)
-		
 		// Check for copula だ (基本形 or 終止形)
 		if last.PartOfSpeech == "助動詞" && last.BaseForm == "だ" && 
 		   (last.InflectionForm == "基本形" || last.InflectionForm == "終止形") {
-			slog.Debug("converting だ to です")
 			result[actualLastIdx].Surface = "です"
 			result[actualLastIdx].BaseForm = "です"
 		}
@@ -390,8 +374,6 @@ func (c *Converter) handlePastTenseCasualToPolite(morphemes []MorphemeInfo) []Mo
 	if actualLastIdx >= 0 {
 		last := result[actualLastIdx]
 		
-		slog.Debug("checking past tense conversion", "surface", last.Surface, "pos", last.PartOfSpeech, "base_form", last.BaseForm, "inflection_form", last.InflectionForm)
-		
 		// Check if it's a past tense auxiliary た/だ
 		if last.PartOfSpeech == "助動詞" && (last.Surface == "た" || last.Surface == "だ") &&
 		   last.BaseForm == "た" && last.InflectionForm == "基本形" {
@@ -399,7 +381,6 @@ func (c *Converter) handlePastTenseCasualToPolite(morphemes []MorphemeInfo) []Mo
 			// Find the verb before た/だ and convert to ました
 			if actualLastIdx > 0 {
 				prev := result[actualLastIdx-1]
-				slog.Debug("checking previous morpheme for past tense", "surface", prev.Surface, "pos", prev.PartOfSpeech, "inflection_form", prev.InflectionForm)
 				
 				// Handle negative past tense: なかっ + た → ませんでした
 				if prev.PartOfSpeech == "助動詞" && prev.Surface == "なかっ" && prev.BaseForm == "ない" {
@@ -409,7 +390,6 @@ func (c *Converter) handlePastTenseCasualToPolite(morphemes []MorphemeInfo) []Mo
 							// Convert to ませんでした
 							renyoukei := c.getVerbRenyoukei(verb)
 							if renyoukei != "" {
-								slog.Debug("converting negative past tense", "original_verb", verb.Surface, "renyoukei", renyoukei)
 								result[actualLastIdx-2].Surface = renyoukei
 								result[actualLastIdx-1].Surface = "ませんでし"
 								result[actualLastIdx].Surface = "た"
@@ -421,7 +401,6 @@ func (c *Converter) handlePastTenseCasualToPolite(morphemes []MorphemeInfo) []Mo
 					// Convert verb to 連用形 and change た to ました
 					renyoukei := c.getVerbRenyoukeiFromTaForm(prev)
 					if renyoukei != "" {
-						slog.Debug("converting past tense", "original_verb", prev.Surface, "renyoukei", renyoukei)
 						result[actualLastIdx-1].Surface = renyoukei
 						result[actualLastIdx].Surface = "ました"
 						result[actualLastIdx].BaseForm = "ます"
@@ -474,8 +453,6 @@ func (c *Converter) handleNegativeCasualToPolite(morphemes []MorphemeInfo) []Mor
 		return morphemes
 	}
 	
-	slog.Debug("handleNegativeCasualToPolite called", "count", len(morphemes))
-	
 	result := make([]MorphemeInfo, len(morphemes))
 	copy(result, morphemes)
 	
@@ -489,18 +466,14 @@ func (c *Converter) handleNegativeCasualToPolite(morphemes []MorphemeInfo) []Mor
 	if actualLastIdx >= 0 {
 		last := result[actualLastIdx]
 		
-		slog.Debug("checking negative conversion", "surface", last.Surface, "pos", last.PartOfSpeech, "base_form", last.BaseForm)
-		
 		// Check if it's negative auxiliary ない
 		if last.PartOfSpeech == "助動詞" && last.BaseForm == "ない" {
 			if actualLastIdx > 0 {
 				prev := result[actualLastIdx-1]
-				slog.Debug("checking previous morpheme for negative", "surface", prev.Surface, "pos", prev.PartOfSpeech)
 				if prev.PartOfSpeech == "動詞" {
 					// Convert verb to 連用形 and change ない to ません
 					renyoukei := c.getVerbRenyoukei(prev)
 					if renyoukei != "" {
-						slog.Debug("converting negative form", "verb", prev.Surface, "renyoukei", renyoukei)
 						result[actualLastIdx-1].Surface = renyoukei
 						result[actualLastIdx].Surface = "ません"
 					}
@@ -527,7 +500,7 @@ func (c *Converter) reconstructSentence(morphemes []MorphemeInfo) string {
 	return strings.Join(parts, "")
 }
 // convertConjunctionCasualToPolite converts conjunctions from casual to polite form.
-// だから → ですから, だが → ですが
+// だから → ですから, だが → ですが, が → ですが (when used as conjunction)
 func (c *Converter) convertConjunctionCasualToPolite(morphemes []MorphemeInfo) []MorphemeInfo {
 	if len(morphemes) == 0 {
 		return morphemes
@@ -536,23 +509,38 @@ func (c *Converter) convertConjunctionCasualToPolite(morphemes []MorphemeInfo) [
 	result := make([]MorphemeInfo, len(morphemes))
 	copy(result, morphemes)
 	
-	// Check the beginning of the sentence for conjunctions
-	if len(result) > 0 {
-		first := result[0]
-		
-		slog.Debug("checking conjunction conversion", "surface", first.Surface, "pos", first.PartOfSpeech)
+	// Check all morphemes for conjunctions
+	for i := 0; i < len(result); i++ {
+		morpheme := result[i]
 		
 		// Convert specific conjunctions
-		switch first.Surface {
+		switch morpheme.Surface {
 		case "だから":
-			if first.PartOfSpeech == "接続詞" {
-				slog.Debug("converting conjunction", "from", "だから", "to", "ですから")
-				result[0].Surface = "ですから"
+			if morpheme.PartOfSpeech == "接続詞" {
+				result[i].Surface = "ですから"
 			}
 		case "だが":
-			if first.PartOfSpeech == "接続詞" {
-				slog.Debug("converting conjunction", "from", "だが", "to", "ですが")
-				result[0].Surface = "ですが"
+			if morpheme.PartOfSpeech == "接続詞" {
+				result[i].Surface = "ですが"
+			}
+		case "が":
+			// Convert "が" to "ですが" when it's used as a conjunction (接続助詞)
+			// and preceded by "だ" (助動詞)
+			if morpheme.PartOfSpeech == "助詞" && morpheme.PartOfSpeechDetail1 == "接続助詞" {
+				// Check if the previous morpheme is "だ" (助動詞)
+				if i > 0 && result[i-1].Surface == "だ" && result[i-1].PartOfSpeech == "助動詞" {
+					// Remove "だ" and replace "が" with "ですが"
+					result = append(result[:i-1], result[i:]...)
+					result[i-1].Surface = "ですが"
+					// Adjust index since we removed one element
+					i--
+				} else if i > 0 && result[i-1].Surface == "いる" && result[i-1].PartOfSpeech == "動詞" {
+					// Convert "いる" to "います" and keep "が" as "が"
+					result[i-1].Surface = "います"
+					// Keep "が" as is
+				} else {
+					result[i].Surface = "ですが"
+				}
 			}
 		}
 	}
